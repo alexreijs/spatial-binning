@@ -26,8 +26,8 @@ loadSpatialData <- function(map, fileName, area) {
     
     mapPath <- paste('maps/', fileName, '.rds', sep = "")
     
-    #if (!file.exists(mapPath) || class(area) == "SpatialPolygons") {
-    if (1) {
+    if (!file.exists(mapPath) || class(area) == "SpatialPolygons") {
+    #if (1) {
     
         data <- read.csv(dataFile, colClasses = c("character", "character", "integer"))
         colnames(data) <- c("Bin_ID", "Bin_Text", "Impressions")
@@ -55,8 +55,8 @@ loadSpatialData <- function(map, fileName, area) {
         mapPolygons <- SpatialPolygonsDataFrame(spatialPolygons, dataPolygons[-2])
         
         pal <- colorNumeric(
-            palette = colorRampPalette(c("blue", "cyan", "green", "yellow", "red"))(max(dataPolygons$Impressions) - min(dataPolygons$Impressions) + 1),
-            domain = c(min(dataPolygons$Impressions), max(dataPolygons$Impressions))
+            palette = colorRampPalette(c("blue", "cyan", "green", "yellow", "red"))(max(mapPolygons@data$Impressions) - min(mapPolygons@data$Impressions) + 1),
+            domain = c(min(mapPolygons@data$Impressions), max(mapPolygons@data$Impressions))
         )  
 
         for (i in 1:length(mapPolygons@polygons)) {
