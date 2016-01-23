@@ -26,46 +26,42 @@ loadSpatialData <- function(map, fileName, area) {
     
     mapPath <- paste('maps/', fileName, '.rds', sep = "")
     
-    if (!file.exists(mapPath) || class(area) == "SpatialPolygons") {
-    #if (1) {
+    #if (!file.exists(mapPath) || class(area) == "SpatialPolygons") {
+    if (1) {
     
-        data <- read.csv(dataFile, sep = ",", colClasses = c("character", "character", "integer"))
+        data <- read.csv(dataFile, colClasses = c("character", "character", "integer"))
         colnames(data) <- c("Bin_ID", "Bin_Text", "Impressions")
+        row.names(data) <- data$Bin_ID
         
         data$Impressions <- round_any(data$Impressions, 10, f = ceiling)
-        data <- data[!(data$Impressions %in% setdiff(data$Impressions, remove_outliers(data$Impressions))), ]
-
+        
+        spatialPolygons <- numeric(0)
+        dataPolygons <- data
+        
+        for (i in 1:nrow(data)) { 
+            spatialPolygon <- readWKT(data$Bin_Text[i], data$Bin_ID[i])
+            
+            if (class(area) == "SpatialPolygons" && !gContains(area, gCentroid(spatialPolygon))) {
+                dataPolygons <- subset(dataPolygons, Bin_ID != data$Bin_ID[i])
+                next
+            }
+            
+            if (length(spatialPolygons) == 0)
+                spatialPolygons <- spatialPolygon
+            else
+                spatialPolygons <- rbind(spatialPolygons, spatialPolygon)    
+        }
+        
+        mapPolygons <- SpatialPolygonsDataFrame(spatialPolygons, dataPolygons[-2])
+        
         pal <- colorNumeric(
-          palette = colorRampPalette(c("blue", "cyan", "green", "yellow", "red"))(max(data$Impressions)),
-          domain = c(min(data$Impressions), max(data$Impressions))
+            palette = colorRampPalette(c("blue", "cyan", "green", "yellow", "red"))(max(dataPolygons$Impressions) - min(dataPolygons$Impressions) + 1),
+            domain = c(min(dataPolygons$Impressions), max(dataPolygons$Impressions))
         )  
-        
-        uniqueImpressions <- unique(data$Impressions)
-        
-        for (x in 1:length(uniqueImpressions)) {
-          
-            dataSplit <- data[data$Impressions == uniqueImpressions[x], ]
-            spatialPolygons <- numeric(0)
-            
-            for (i in 1:nrow(dataSplit)) { 
-                spatialPolygon <- readWKT(dataSplit$Bin_Text[i], dataSplit$Bin_ID[i])
-                
-                if (class(area) == "SpatialPolygons" && !gContains(area, gCentroid(spatialPolygon)))
-                    next
-                
-                if (length(spatialPolygons) == 0)
-                    spatialPolygons <- spatialPolygon
-                else
-                    spatialPolygons <- rbind(spatialPolygons, spatialPolygon)
-            }
-                
-            ## DIKKE VERGEET NIET JE PADDING NAAR 4 COLUMNS AAN TE PASSEN
-            
-            if (length(spatialPolygons) > 0) {
-                spatialPolygonsUnion <- gUnionCascaded(spatialPolygons)
-                map <- addPolygons(map, data = spatialPolygonsUnion, smoothFactor = 0.0, fillOpacity = 0.5, stroke=FALSE, col = pal(uniqueImpressions[x]))  
-            }
-    
+
+        for (i in 1:length(mapPolygons@polygons)) {
+            polygon <- mapPolygons@polygons[[i]]
+            map <- addPolygons(map, data = polygon, smoothFactor = 0.0, fillOpacity = 0.5, stroke=FALSE, col = pal(mapPolygons@data$Impressions[i]))  
         }
         
         if (class(area) != "SpatialPolygons")
