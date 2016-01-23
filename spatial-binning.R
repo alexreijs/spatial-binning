@@ -33,7 +33,7 @@ loadSpatialData <- function(map, fileName, area) {
         colnames(data) <- c("Bin_ID", "Bin_Text", "Impressions")
         row.names(data) <- data$Bin_ID
         
-        data$Impressions <- round_any(data$Impressions, 10, f = ceiling)
+        #data$Impressions <- round_any(data$Impressions, 10, f = ceiling)
         
         spatialPolygons <- numeric(0)
         dataPolygons <- data

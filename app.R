@@ -44,8 +44,10 @@ server <- function(input, output, session) {
                 sps = SpatialPolygons(list(ps))
 		centroid <- gCentroid(sps)
 
+		if (origZoom >= 14)
+			mapName <- "nl_0_0010"
 		if (origZoom >= 13)
-			mapName <- "nl_0_0050"
+			mapName <- "nl_0_0025"
 		if (origZoom >= 12)
 			mapName <- "nl_0_0050"
 		if (origZoom >= 11)
