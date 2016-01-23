@@ -47,11 +47,11 @@ server <- function(input, output, session) {
 		if (origZoom >= 13)
 			mapName <- "nl_0_0050"
 		if (origZoom >= 12)
-			mapName <- "nl_0_0100"
+			mapName <- "nl_0_0050"
 		if (origZoom >= 11)
-			mapName <- "nl_0_0250"
+			mapName <- "nl_0_0100"
 		if (origZoom >= 10)
-			mapName <- "nl_0_0500"
+			mapName <- "nl_0_0250"
 		else
 			mapName <- "nl_0_1000"
 
