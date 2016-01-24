@@ -43,19 +43,18 @@ subsetSpatialData <- function(mapPolygons, area) {
 
 prepareSpatialData <- function(fileName) {
     
+    ptm <<- proc.time()
     csvFile <- paste('data/', fileName, ".csv", sep = "")
     dataFile <- paste('data/', fileName, ".rds", sep = "")
     
     if (!file.exists(csvFile))
-        stop("Could not find CSV file")
+        stop(paste("Could not find CSV file -", csvFile))
  
     if (!file.exists(dataFile)) {    
         data <- read.csv(csvFile, colClasses = c("character", "character", "integer"))
         colnames(data) <- c("Bin_ID", "Bin_Text", "Impressions")
         row.names(data) <- data$Bin_ID
-        
-        data$Impressions <- round_any(data$Impressions, 10, f = ceiling)
-        
+                
         spatialPolygons <- numeric(0)
         dataPolygons <- data
         
@@ -65,17 +64,17 @@ prepareSpatialData <- function(fileName) {
             if (length(spatialPolygons) == 0)
                 spatialPolygons <- spatialPolygon
             else
-                spatialPolygons <- rbind(spatialPolygons, spatialPolygon)    
+                spatialPolygons <- append(spatialPolygons, spatialPolygon)    
         }
         
+        spatialPolygons <- do.call("rbind", spatialPolygons)
         mapPolygons <- SpatialPolygonsDataFrame(spatialPolygons, dataPolygons[-2])
-
         saveRDS(mapPolygons, file = dataFile)
     }
     else
         mapPolygons <- readRDS(dataFile)
 
-   mapPolygons
+   return(mapPolygons)
 }
 
 
@@ -89,8 +88,9 @@ loadSpatialData <- function(map, fileName, area) {
     mapPath <- paste('maps/', fileName, '.rds', sep = "")
     
     if (!file.exists(mapPath) || class(area) == "SpatialPolygons") {
-    
         mapPolygons <- prepareSpatialData(fileName)    
+        mapPolygons@data$Impressions <- round_any(mapPolygons@data$Impressions, 10, f = ceiling)
+    
         logTime(paste("Prepared spatial data - loaded", nrow(mapPolygons), "rows of data"))
         
         mapPolygons <- mapPolygons[!(mapPolygons@data$Impressions %in% setdiff(mapPolygons@data$Impressions, remove_outliers(mapPolygons@data$Impressions))), ]
