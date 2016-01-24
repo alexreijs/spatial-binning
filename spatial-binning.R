@@ -100,16 +100,15 @@ loadSpatialData <- function(map, fileName, area) {
     
         
         polygonArea <- gArea(SpatialPolygons(list(mapPolygons@polygons[[1]])))
-        print(polygonArea * 1000)
         
-        if (polygonArea <= 0.0001)
+        if (polygonArea <= 0.00006)
+            upper <- 0.925
+        else if (polygonArea <= 0.0001)
             upper <- 0.95
         else if (polygonArea <= 0.00015625)
             upper <- 0.975
         else
             upper <- 0.9999
-        
-        print(upper)
         
         mapPolygons@data$Impressions[mapPolygons@data$Impressions %in% setdiff(mapPolygons@data$Impressions, remove_outliers(mapPolygons@data$Impressions, 0, upper))] <- NA
         logTime(paste("Removed outliers -", sum(!is.na(mapPolygons@data$Impressions)), "remaining rows of data"))
