@@ -10,8 +10,8 @@ logTime <- function(action) {
     print(proc.time() - ptm)
 }
 
-remove_outliers <- function(x, na.rm = TRUE, ...) {
-    qnt <- quantile(x, probs=c(0, .99999), na.rm = na.rm, ...)
+remove_outliers <- function(x, lower, upper, na.rm = TRUE, ...) {
+    qnt <- quantile(x, probs=c(lower, upper), na.rm = na.rm, ...)
     H <- 1.5 * IQR(x, na.rm = na.rm)
     y <- x
     y[x < (qnt[1] - H)] <- NA
@@ -92,18 +92,32 @@ loadSpatialData <- function(map, fileName, area) {
         mapPolygons@data$Impressions <- round_any(mapPolygons@data$Impressions, 10, f = ceiling)
     
         logTime(paste("Prepared spatial data - loaded", nrow(mapPolygons), "rows of data"))
-        
-        mapPolygons <- mapPolygons[!(mapPolygons@data$Impressions %in% setdiff(mapPolygons@data$Impressions, remove_outliers(mapPolygons@data$Impressions))), ]
-        logTime(paste("Removed outliers -", nrow(mapPolygons), "remaining rows of data"))
-        
+                
         if (class(area) == "SpatialPolygons") {
             mapPolygons <- subsetSpatialData(mapPolygons, area)    
             logTime(paste("Subsetted spatial data -", nrow(mapPolygons), "remaining rows of data"))
         }
+    
         
+        polygonArea <- gArea(SpatialPolygons(list(mapPolygons@polygons[[1]])))
+        print(polygonArea * 1000)
+        
+        if (polygonArea <= 0.0001)
+            upper <- 0.95
+        else if (polygonArea <= 0.00015625)
+            upper <- 0.975
+        else
+            upper <- 0.9999
+        
+        print(upper)
+        
+        mapPolygons@data$Impressions[mapPolygons@data$Impressions %in% setdiff(mapPolygons@data$Impressions, remove_outliers(mapPolygons@data$Impressions, 0, upper))] <- NA
+        logTime(paste("Removed outliers -", sum(!is.na(mapPolygons@data$Impressions)), "remaining rows of data"))
+                
         pal <- colorNumeric(
-            palette = colorRampPalette(c("blue", "cyan", "green", "yellow", "red"))(max(mapPolygons@data$Impressions) - min(mapPolygons@data$Impressions) + 1),
-            domain = c(min(mapPolygons@data$Impressions), max(mapPolygons@data$Impressions))
+            palette = colorRampPalette(c("blue", "cyan", "green", "yellow", "red"))(max(mapPolygons@data$Impressions, na.rm = TRUE) - min(mapPolygons@data$Impressions, na.rm = TRUE) + 1),
+            domain = c(min(mapPolygons@data$Impressions, na.rm = TRUE), max(mapPolygons@data$Impressions, na.rm = TRUE)),
+            na.color = "white"
         )  
         
         logTime("Created palette")
