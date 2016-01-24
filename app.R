@@ -31,12 +31,24 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
 	
-
-	getDataFromArea <- eventReactive(input$impressionsButton, {
-		mapPolygons <- subsetSpatialData(prepareSpatialData("nl_0_0175"), getBounds())
-		mapPolygons@data
-	})
-
+	getMapNameByZoomlevel <- function (zoomLevel) {
+		if (zoomLevel >= 16)
+			"nl_hd_0_0025"
+		if (zoomLevel >= 15)
+			"nl_hd_0_0050"
+		else if (zoomLevel >= 14)
+			"nl_hd_0_0075"
+		else if (zoomLevel >= 13)
+			"nl_hd_0_0075"
+		else if (zoomLevel >= 12)
+			"nl_hd_0_0100"
+		else if (zoomLevel >= 11)
+			"nl_hd_0_0150"
+		else if (zoomLevel >= 10)
+			"nl_0_0175"
+		else
+			"nl_0_0250"
+	}
 
 	getBounds <- function() {
                 bounds <- input$map_bounds
@@ -55,36 +67,22 @@ server <- function(input, output, session) {
                 SpatialPolygons(list(ps))
 	}
 
+	getDataFromArea <- eventReactive(input$impressionsButton, {
+		mapName <- getMapNameByZoomlevel(input$map_zoom)
+		mapBounds <- getBounds()
+		mapPolygons <- subsetSpatialData(prepareSpatialData(mapName), mapBounds)
+		mapPolygons@data
+	})
+
 	getMap <- eventReactive(input$loadMapButton, {
-
 		origZoom <- input$map_zoom
-
-                sps = getBounds()
-
-		centroid <- gCentroid(sps)
-
-		if (input$map_zoom >= 16)
-			mapName <- "nl_hd_0_0025"
-		if (input$map_zoom >= 15)
-			mapName <- "nl_hd_0_0050"
-		else if (input$map_zoom >= 14)
-			mapName <- "nl_hd_0_0075"
-		else if (input$map_zoom >= 13)
-			mapName <- "nl_hd_0_0075"
-		else if (input$map_zoom >= 12)
-			mapName <- "nl_hd_0_0100"
-		else if (input$map_zoom >= 11)
-			mapName <- "nl_hd_0_0150"
-		else if (input$map_zoom >= 10)
-			mapName <- "nl_0_0175"
-		else
-			mapName <- "nl_0_0250"
-
-		map <- loadMap(mapName, sps)
+		mapBounds <- getBounds()
+		centroid <- gCentroid(mapBounds)
+		
+		map <- loadMap(getMapNameByZoomlevel(input$map_zoom), mapBounds)
 		map %>% setView(map, lat = centroid$x, lng = centroid$y, zoom = origZoom)
 		
 		map
-
 	})
 
    	output$map <- renderLeaflet({
