@@ -5,6 +5,11 @@ library(grDevices)
 library(gridExtra)
 library(maptools)
 
+logTime <- function(action) {
+    print(action)
+    print(proc.time() - ptm)
+}
+
 remove_outliers <- function(x, na.rm = TRUE, ...) {
     qnt <- quantile(x, probs=c(0, .99999), na.rm = na.rm, ...)
     H <- 1.5 * IQR(x, na.rm = na.rm)
@@ -14,37 +19,48 @@ remove_outliers <- function(x, na.rm = TRUE, ...) {
     y
 }
 
-loadSpatialData <- function(map, fileName, area) {
+
+subsetSpatialData <- function(mapPolygons, area) {   
+    inArea <- numeric(0)
     
-    dataFile <- paste('data/', fileName, ".csv", sep = "")
+    for (i in 1:length(mapPolygons@polygons)) {
+        spatialPolygon <- SpatialPolygons(list(mapPolygons@polygons[[i]]))
+        
+        if (gContains(area, gCentroid(spatialPolygon))) {
+            if (length(inArea) == 0)
+                inArea <- i
+            else
+                inArea <- rbind(inArea, i)                  
+        }
+    }
+        
+    inAreaPolygons <- SpatialPolygons(mapPolygons@polygons[inArea])
+    inAreaDataFrame <- data.frame(Bin_ID = mapPolygons@data$Bin_ID[inArea], Impressions = mapPolygons@data$Impressions[inArea])
+    row.names(inAreaDataFrame) <- inAreaDataFrame$Bin_ID
     
-    if (!file.exists(dataFile))
+    SpatialPolygonsDataFrame(inAreaPolygons, inAreaDataFrame)  
+}
+
+prepareSpatialData <- function(fileName) {
+    
+    csvFile <- paste('data/', fileName, ".csv", sep = "")
+    dataFile <- paste('data/', fileName, ".rds", sep = "")
+    
+    if (!file.exists(csvFile))
         stop("Could not find CSV file")
-    
-    if (!file.exists('maps'))
-        dir.create('maps')
-    
-    mapPath <- paste('maps/', fileName, '.rds', sep = "")
-    
-    if (!file.exists(mapPath) || class(area) == "SpatialPolygons") {
-    #if (1) {
-    
-        data <- read.csv(dataFile, colClasses = c("character", "character", "integer"))
+ 
+    if (!file.exists(dataFile)) {    
+        data <- read.csv(csvFile, colClasses = c("character", "character", "integer"))
         colnames(data) <- c("Bin_ID", "Bin_Text", "Impressions")
         row.names(data) <- data$Bin_ID
         
-        #data$Impressions <- round_any(data$Impressions, 10, f = ceiling)
+        data$Impressions <- round_any(data$Impressions, 10, f = ceiling)
         
         spatialPolygons <- numeric(0)
         dataPolygons <- data
         
         for (i in 1:nrow(data)) { 
             spatialPolygon <- readWKT(data$Bin_Text[i], data$Bin_ID[i])
-            
-            if (class(area) == "SpatialPolygons" && !gContains(area, gCentroid(spatialPolygon))) {
-                dataPolygons <- subset(dataPolygons, Bin_ID != data$Bin_ID[i])
-                next
-            }
             
             if (length(spatialPolygons) == 0)
                 spatialPolygons <- spatialPolygon
@@ -53,16 +69,69 @@ loadSpatialData <- function(map, fileName, area) {
         }
         
         mapPolygons <- SpatialPolygonsDataFrame(spatialPolygons, dataPolygons[-2])
+
+        saveRDS(mapPolygons, file = dataFile)
+    }
+    else
+        mapPolygons <- readRDS(dataFile)
+
+   mapPolygons
+}
+
+
+loadSpatialData <- function(map, fileName, area) {
+    
+    ptm <<- proc.time()
+    
+    if (!file.exists('maps'))
+        dir.create('maps')
+    
+    mapPath <- paste('maps/', fileName, '.rds', sep = "")
+    
+    if (!file.exists(mapPath) || class(area) == "SpatialPolygons") {
+    
+        mapPolygons <- prepareSpatialData(fileName)    
+        logTime(paste("Prepared spatial data - loaded", nrow(mapPolygons), "rows of data"))
+        
+        mapPolygons <- mapPolygons[!(mapPolygons@data$Impressions %in% setdiff(mapPolygons@data$Impressions, remove_outliers(mapPolygons@data$Impressions))), ]
+        logTime(paste("Removed outliers -", nrow(mapPolygons), "remaining rows of data"))
+        
+        if (class(area) == "SpatialPolygons") {
+            mapPolygons <- subsetSpatialData(mapPolygons, area)    
+            logTime(paste("Subsetted spatial data -", nrow(mapPolygons), "remaining rows of data"))
+        }
         
         pal <- colorNumeric(
             palette = colorRampPalette(c("blue", "cyan", "green", "yellow", "red"))(max(mapPolygons@data$Impressions) - min(mapPolygons@data$Impressions) + 1),
             domain = c(min(mapPolygons@data$Impressions), max(mapPolygons@data$Impressions))
         )  
+        
+        logTime("Created palette")
+        
 
-        for (i in 1:length(mapPolygons@polygons)) {
-            polygon <- mapPolygons@polygons[[i]]
-            map <- addPolygons(map, data = polygon, smoothFactor = 0.0, fillOpacity = 0.5, stroke=FALSE, col = pal(mapPolygons@data$Impressions[i]))  
+        if (nrow(mapPolygons) > 500) {
+            spatialPolygonsUnion <- mapply(function(polygons) {
+                if (length(polygons) > 1)
+                    gUnionCascaded(SpatialPolygons(polygons))
+                else
+                    SpatialPolygons(list(polygons[[1]]))
+            }, split(mapPolygons@polygons, mapPolygons@data$Impressions))
+            
+            logTime(paste("Unioned spacial data -", length(spatialPolygonsUnion), "union polygons"))
+            
+            for (i in 1:length(spatialPolygonsUnion)) {
+                polygons <- spatialPolygonsUnion[[i]]
+                map <- addPolygons(map, data = polygons, smoothFactor = 0.0, fillOpacity = 0.5, stroke=FALSE, col = pal(as.integer(names(spatialPolygonsUnion)[i])))  
+            }   
         }
+        else {
+            for (i in 1:length(mapPolygons@polygons)) {
+                polygons <- mapPolygons@polygons[[i]]
+                map <- addPolygons(map, data = polygons, smoothFactor = 0.0, fillOpacity = 0.5, stroke=FALSE, col = pal(mapPolygons@data$Impressions[i]))  
+            }   
+        }
+        
+        logTime("Plotted spatial data")
         
         if (class(area) != "SpatialPolygons")
             saveRDS(map, file = mapPath)
