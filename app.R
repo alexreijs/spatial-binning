@@ -5,7 +5,7 @@ library(grDevices)
 library(gridExtra)
 library(maptools)
 
-
+options(shiny.trace=TRUE)
 options('downlad.file.method' = 'curl')
 
 setwd('/srv/shiny-server/spatial-binning')
@@ -44,16 +44,18 @@ server <- function(input, output, session) {
                 sps = SpatialPolygons(list(ps))
 		centroid <- gCentroid(sps)
 
-		if (origZoom >= 14)
-			mapName <- "nl_0_0010"
-		if (origZoom >= 13)
-			mapName <- "nl_0_0025"
-		if (origZoom >= 12)
-			mapName <- "nl_0_0050"
-		if (origZoom >= 11)
-			mapName <- "nl_0_0100"
-		if (origZoom >= 10)
-			mapName <- "nl_0_0250"
+		if (input$map_zoom >= 16)
+			mapName <- "nl_hd_0_0025"
+		else if (input$map_zoom >= 14)
+			mapName <- "nl_hd_0_0075"
+		else if (input$map_zoom >= 13)
+			mapName <- "nl_hd_0_0100"
+		else if (input$map_zoom >= 12)
+			mapName <- "nl_0_0150"
+		else if (input$map_zoom >= 11)
+			mapName <- "nl_0_0175"
+		else if (input$map_zoom >= 10)
+			mapName <- "nl_0_0500"
 		else
 			mapName <- "nl_0_1000"
 
@@ -61,11 +63,17 @@ server <- function(input, output, session) {
 		map %>% setView(map, lat = centroid$x, lng = centroid$y, zoom = origZoom)
 		
 		map
+
 	})
 
    	output$map <- renderLeaflet({
+
+		cat("bar\n", file=stderr())
+		cat("bar\n", file=stdout())
+		print("loll")
+
 		if (input$goButton == 0)
-			loadMap("nl_0_1000")
+			loadMap("nl_0_0500")
 		else
 			getMap()
 	})
